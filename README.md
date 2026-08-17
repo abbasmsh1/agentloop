@@ -30,6 +30,22 @@ The agent reasons, calls the calculator, then asks for confirmation before writi
 | Step budget | Hard cap on loop iterations; no runaway agents |
 | Run log | Every model call and tool result appended to `runs/*.jsonl` |
 
+## Web UI
+
+```bash
+uvicorn api.index:app --reload
+```
+
+Open http://localhost:8000: chat with the agent, toggle auto-approve for write actions, and expand the full run log under each answer.
+
+## Deploy to Vercel
+
+```bash
+vercel --prod        # set OPENAI_API_KEY in the Vercel project settings
+```
+
+On serverless the run logs go to `/tmp/runs` and file tools operate in a `/tmp` scratch sandbox.
+
 ## Add your own tool
 
 ```python

@@ -29,8 +29,9 @@ def run(task, approve=_approve, model="gpt-4o-mini"):
     from openai import OpenAI
 
     client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
-    os.makedirs("runs", exist_ok=True)
-    run_file = os.path.join("runs", f"run-{int(time.time())}.jsonl")
+    runs_dir = os.environ.get("RUNS_DIR", "runs")  # serverless: set RUNS_DIR=/tmp/runs
+    os.makedirs(runs_dir, exist_ok=True)
+    run_file = os.path.join(runs_dir, f"run-{int(time.time())}.jsonl")
     _log(run_file, {"event": "task", "task": task})
 
     messages = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": task}]

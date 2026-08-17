@@ -1,2 +1,5 @@
 openai>=1.30
+fastapi>=0.111
+uvicorn>=0.30
 pytest>=8.0
+httpx>=0.27
