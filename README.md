@@ -44,7 +44,7 @@ Open http://localhost:8000: chat with the agent, toggle auto-approve for write a
 vercel --prod        # set OPENAI_API_KEY in the Vercel project settings
 ```
 
-On serverless the run logs go to `/tmp/runs` and file tools operate in a `/tmp` scratch sandbox.
+Each request gets its own `/tmp` scratch sandbox and run log, so nothing leaks between users. Optional: set `DEMO_TOKEN` to require an `X-Demo-Token` header on `/api/run`, protecting your OpenAI credits on a public URL.
 
 ## Add your own tool
 

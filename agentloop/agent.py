@@ -24,12 +24,12 @@ def _approve(name, args):
     return input().strip().lower() == "y"
 
 
-def run(task, approve=_approve, model="gpt-4o-mini"):
-    """Run the agent on a task. Returns the final answer string."""
+def run(task, approve=_approve, model="gpt-4o-mini", runs_dir=None):
+    """Run the agent on a task. Returns (answer, run_file_path)."""
     from openai import OpenAI
 
     client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
-    runs_dir = os.environ.get("RUNS_DIR", "runs")  # serverless: set RUNS_DIR=/tmp/runs
+    runs_dir = runs_dir or os.environ.get("RUNS_DIR", "runs")
     os.makedirs(runs_dir, exist_ok=True)
     run_file = os.path.join(runs_dir, f"run-{int(time.time())}.jsonl")
     _log(run_file, {"event": "task", "task": task})
@@ -41,7 +41,7 @@ def run(task, approve=_approve, model="gpt-4o-mini"):
         msg = resp.choices[0].message
         if not msg.tool_calls:
             _log(run_file, {"event": "answer", "content": msg.content})
-            return msg.content
+            return msg.content, run_file
 
         messages.append({"role": "assistant", "content": msg.content,
                          "tool_calls": [tc.model_dump() for tc in msg.tool_calls]})
@@ -52,7 +52,7 @@ def run(task, approve=_approve, model="gpt-4o-mini"):
             messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
 
     _log(run_file, {"event": "abort", "reason": "step budget exhausted"})
-    return "Stopped: step budget exhausted before the task finished."
+    return "Stopped: step budget exhausted before the task finished.", run_file
 
 
 def _execute(name, args, approve, run_file):
