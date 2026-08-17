@@ -5,6 +5,7 @@ directory for file tools and its own runs dir, so nothing leaks between
 requests or users sharing a warm instance.
 """
 import json
+import hmac
 import os
 import sys
 import tempfile
@@ -25,7 +26,7 @@ _WEB = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
 def check_token(x_demo_token):
     """If DEMO_TOKEN is set, require it - keeps a public demo from burning your API key."""
     required = os.environ.get("DEMO_TOKEN")
-    if required and x_demo_token != required:
+    if required and not hmac.compare_digest(x_demo_token or "", required):
         raise HTTPException(401, "missing or wrong X-Demo-Token header")
 
 
