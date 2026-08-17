@@ -6,61 +6,100 @@
 <title>agentloop</title>
 <style>
   :root {
-    --bg: #0a1512; --panel: #12211d; --border: #24413a;
-    --text: #eef8f5; --muted: #8fb3aa; --accent: #4dd6c1;
+    --bg: #081412; --panel: #102220; --panel-2: #163029; --border: #26473f;
+    --text: #edf9f5; --muted: #96b8ae; --accent: #4dd6c1; --accent-ink: #032620;
+    --deny: #ff9d9d; --ok: #7ee2a8;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
+  ::selection { background: var(--accent); color: var(--accent-ink); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+  html { scrollbar-color: var(--border) transparent; }
   body {
     font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background: var(--bg); color: var(--text); min-height: 100vh;
     display: flex; flex-direction: column; align-items: center;
+    caret-color: var(--accent);
   }
-  header { width: 100%; max-width: 820px; padding: 28px 20px 8px; }
-  h1 { font-size: 22px; }
-  h1 span { color: var(--accent); }
-  .sub { color: var(--muted); font-size: 14px; margin-top: 4px; }
-  main { width: 100%; max-width: 820px; padding: 16px 20px 130px; flex: 1; }
-  .msg { padding: 12px 14px; border-radius: 10px; margin: 10px 0; line-height: 1.5; white-space: pre-wrap; }
-  .q { background: #1c332d; margin-left: 15%; }
-  .a { background: var(--panel); border: 1px solid var(--border); margin-right: 15%; }
-  .trace { margin-top: 10px; font-size: 12px; color: var(--muted); }
-  .trace summary { cursor: pointer; color: var(--accent); }
-  .ev { border-left: 2px solid var(--border); padding: 4px 10px; margin: 5px 0; font-family: "SF Mono", Consolas, monospace; }
-  .ev b { color: var(--accent); }
+  header { width: 100%; max-width: 820px; padding: 40px 20px 6px; }
+  h1 { font-size: 34px; font-weight: 800; letter-spacing: -0.02em; }
+  h1 em { font-style: normal; color: var(--accent); }
+  .sub { color: var(--muted); font-size: 15px; margin-top: 6px; max-width: 56ch; line-height: 1.5; }
+  main { width: 100%; max-width: 820px; padding: 18px 20px 150px; flex: 1; }
+  .empty { text-align: center; color: var(--muted); padding: 56px 20px; line-height: 1.7; font-size: 15px; }
+  .empty b { color: var(--text); display: block; font-size: 17px; margin-bottom: 4px; }
+  .msg {
+    padding: 13px 16px; border-radius: 14px; margin: 12px 0;
+    line-height: 1.55; white-space: pre-wrap; max-width: 85%;
+    animation: rise .25s cubic-bezier(.2,.9,.3,1) both;
+  }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+  @media (prefers-reduced-motion: reduce) { .msg { animation: none; } }
+  .q { background: var(--panel-2); border: 1px solid var(--border); margin-left: auto; border-bottom-right-radius: 4px; }
+  .a { background: var(--panel); border: 1px solid var(--border); margin-right: auto; border-bottom-left-radius: 4px; }
+  .a.busy { color: var(--muted); }
+  .trace { margin-top: 12px; font-size: 13px; color: var(--muted); }
+  .trace summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+  .trace summary:hover { text-decoration: underline; text-underline-offset: 3px; }
+  .ev {
+    display: flex; gap: 10px; align-items: baseline;
+    border-top: 1px solid var(--border); padding: 7px 2px;
+  }
+  .ev:first-of-type { margin-top: 8px; }
+  .tag {
+    flex: none; font-size: 11px; font-weight: 700; letter-spacing: .04em;
+    padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted);
+  }
+  .tag.tool { color: var(--accent); border-color: var(--accent); }
+  .tag.denied, .tag.blocked, .tag.tool_error { color: var(--deny); border-color: var(--deny); }
+  .tag.answer { color: var(--ok); border-color: var(--ok); }
+  .ev .body { overflow-wrap: anywhere; }
   form.ask {
     position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
-    width: 100%; max-width: 820px; padding: 12px 20px 20px;
-    background: var(--bg);
+    width: 100%; max-width: 820px; padding: 12px 20px 22px;
+    background: linear-gradient(transparent, var(--bg) 30%);
   }
   .row { display: flex; gap: 10px; }
   .row input[type=text] {
-    flex: 1; background: var(--panel); border: 1px solid var(--border);
-    border-radius: 8px; padding: 11px 14px; color: var(--text); font-size: 15px;
+    flex: 1; min-width: 0; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 11px; padding: 13px 16px; color: var(--text); font-size: 15px;
+    transition: border-color .15s ease;
   }
-  .row input[type=text]:focus { outline: 2px solid var(--accent); }
+  .row input[type=text]::placeholder { color: var(--muted); }
+  .row input[type=text]:hover { border-color: var(--accent); }
+  .row input[type=text]:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgb(77 214 193 / .22); }
   button {
-    background: var(--accent); color: #06281f; font-weight: 700; border: 0;
-    border-radius: 8px; padding: 9px 20px; font-size: 14px; cursor: pointer;
+    background: var(--accent); color: var(--accent-ink); font-weight: 700; border: 0;
+    border-radius: 10px; padding: 10px 22px; font-size: 14px; cursor: pointer;
+    transition: transform .12s ease, filter .12s ease;
   }
-  button:disabled { opacity: .5; cursor: wait; }
-  label.approve { display: flex; gap: 7px; align-items: center; font-size: 13px; color: var(--muted); margin-top: 9px; }
-  label.approve input { accent-color: var(--accent); }
+  button:hover { filter: brightness(1.07); }
+  button:active { transform: scale(0.97); }
+  button:disabled { opacity: .45; cursor: wait; transform: none; }
+  label.approve {
+    display: flex; gap: 8px; align-items: center; font-size: 13px;
+    color: var(--muted); margin-top: 10px; cursor: pointer; width: fit-content;
+  }
+  label.approve input { accent-color: var(--accent); width: 15px; height: 15px; }
 </style>
 </head>
 <body>
 <header>
-  <h1>agent<span>loop</span></h1>
-  <p class="sub">Tool-calling agent with guardrails. Tools: calculator, read_file, write_file (approval-gated). Every run is fully logged.</p>
+  <h1>An agent with <em>guardrails</em></h1>
+  <p class="sub">Give it a task. It reasons, calls tools (calculator, read_file, write_file), and shows you the full run log. Writes only happen when you allow them.</p>
 </header>
-<main><div id="chat"></div></main>
+<main>
+  <div id="chat">
+    <div class="empty" id="emptystate"><b>No runs yet</b>Try: &ldquo;What is (17 &times; 43) + 12? Save the answer to result.txt&rdquo;</div>
+  </div>
+</main>
 <form class="ask" id="askform">
   <div class="row">
-    <input type="text" id="task" placeholder='Try: "What is (17 * 43) + 12? Save the answer to result.txt"' autocomplete="off">
+    <input type="text" id="task" placeholder="Describe a task for the agent&hellip;" autocomplete="off" aria-label="Task">
     <button id="go">Run</button>
   </div>
   <label class="approve">
     <input type="checkbox" id="auto">
-    Auto-approve write actions (unchecked = agent's writes are denied)
+    Auto-approve write actions &mdash; unchecked, the agent's writes are denied
   </label>
 </form>
 <script>
@@ -69,9 +108,11 @@ $('askform').onsubmit = async (ev) => {
   ev.preventDefault();
   const task = $('task').value.trim();
   if (!task) return;
+  const empty = $('emptystate');
+  if (empty) empty.remove();
   $('task').value = '';
   add('q', task);
-  const wait = add('a', 'Agent running...');
+  const wait = add('a busy', 'Agent running…');
   $('go').disabled = true;
   try {
     const r = await fetch('/api/run', {
@@ -80,18 +121,23 @@ $('askform').onsubmit = async (ev) => {
       body: JSON.stringify({ task, auto_approve: $('auto').checked }),
     });
     const j = await r.json();
+    wait.classList.remove('busy');
     if (!r.ok) { wait.textContent = 'Error: ' + (j.detail || r.status); }
     else {
       wait.textContent = j.answer;
       if (j.events && j.events.length) {
         const d = document.createElement('details');
         d.className = 'trace';
-        d.innerHTML = '<summary>run log (' + j.events.length + ' events)</summary>' +
-          j.events.map(e => `<div class="ev"><b>${esc(e.event)}</b> ${esc(e.tool || '')} ${esc(e.result || e.reason || e.content || '')}</div>`).join('');
+        d.innerHTML = '<summary>run log &middot; ' + j.events.length + ' events</summary>' +
+          j.events.map(e => `
+            <div class="ev">
+              <span class="tag ${esc(e.event)}">${esc(e.event)}</span>
+              <span class="body">${esc([e.tool, e.result || e.reason || e.content || e.task || ''].filter(Boolean).join(' — ')).slice(0, 400)}</span>
+            </div>`).join('');
         wait.appendChild(d);
       }
     }
-  } catch (e) { wait.textContent = 'Error: ' + e; }
+  } catch (e) { wait.classList.remove('busy'); wait.textContent = 'Error: ' + e; }
   $('go').disabled = false;
 };
 function add(cls, text) {
@@ -99,7 +145,7 @@ function add(cls, text) {
   div.className = 'msg ' + cls;
   div.textContent = text;
   $('chat').appendChild(div);
-  div.scrollIntoView({ behavior: 'smooth' });
+  div.scrollIntoView({ behavior: 'smooth', block: 'end' });
   return div;
 }
 function esc(s) { const d = document.createElement('span'); d.textContent = String(s ?? ''); return d.innerHTML; }
