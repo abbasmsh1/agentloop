@@ -3,6 +3,7 @@ import os
 import pytest
 
 from agentloop.agent import _execute
+from agentloop.stores import MemoryRunStore
 from agentloop.tools import BASE_DIR, REGISTRY, _sandboxed, calculate
 
 
@@ -35,7 +36,7 @@ def test_sandbox_uses_base_dir_not_cwd(tmp_path, monkeypatch):
 
 def test_allowlist_blocks_unknown_tool(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    out = _execute("delete_database", {}, approved=True, run_file="log.jsonl")
+    out = _execute("delete_database", {}, approved=True, store=MemoryRunStore())
     assert "does not exist" in out
 
 
@@ -43,7 +44,7 @@ def test_approval_gate_denies(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     assert REGISTRY["write_file"]["requires_approval"] is True
     out = _execute("write_file", {"path": "x.txt", "content": "hi"},
-                   approved=False, run_file="log.jsonl")
+                   approved=False, store=MemoryRunStore())
     assert "denied" in out
     assert not os.path.exists(tmp_path / "x.txt")
 
@@ -51,7 +52,7 @@ def test_approval_gate_denies(tmp_path, monkeypatch):
 def test_approval_gate_allows(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     out = _execute("write_file", {"path": "x.txt", "content": "hi"},
-                   approved=True, run_file="log.jsonl")
+                   approved=True, store=MemoryRunStore())
     assert "wrote" in out
     assert (tmp_path / "x.txt").read_text() == "hi"
 

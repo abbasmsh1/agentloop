@@ -10,7 +10,6 @@ the blob back with decision=true/false to resume the run.
 """
 
 import hmac
-import json
 import os
 import sys
 import tempfile
@@ -62,11 +61,8 @@ def _valid_work(path):
     return full.startswith(prefix) and os.path.isdir(full)
 
 
-def _events(run_file):
-    if not run_file or not os.path.exists(run_file):
-        return []
-    with open(run_file, encoding="utf-8") as f:
-        return [json.loads(line) for line in f if line.strip()]
+def _events(store):
+    return store.load() if store else []
 
 
 class RunRequest(BaseModel):
@@ -117,14 +113,14 @@ def run_task(req: RunRequest, request: Request, x_demo_token: str | None = Heade
 
     approve = (lambda name, args: True) if req.auto_approve else None
     try:
-        answer, run_file = run(approve=approve, model=MODEL, runs_dir=work, work_dir=work,
-                               system=shop.SUPPORT_SYSTEM, tools=shop.SUPPORT_TOOLS, **kwargs)
+        answer, store = run(approve=approve, model=MODEL, runs_dir=work, work_dir=work,
+                            system=shop.SUPPORT_SYSTEM, tools=shop.SUPPORT_TOOLS, **kwargs)
     except ApprovalNeeded as exc:
         return {
             "status": "approval_needed",
             "tool": exc.tool,
             "args": exc.tool_args,
             "state": dict(exc.state, work=work),
-            "events": _events(exc.run_file),
+            "events": _events(exc.store),
         }
-    return {"status": "done", "answer": answer, "events": _events(run_file)}
+    return {"status": "done", "answer": answer, "events": _events(store)}

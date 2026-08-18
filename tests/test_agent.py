@@ -1,5 +1,3 @@
-import json
-
 import pytest
 
 from agentloop.agent import MAX_STEPS, ApprovalNeeded, run
@@ -10,11 +8,11 @@ def test_tool_result_fed_back_to_model(fake_openai, tmp_path):
     responses, calls = fake_openai
     responses += [tool_call_resp("calculate", '{"expression": "(17*43)+12"}'),
                   answer_resp("It is 743.")]
-    answer, run_file = run("math", runs_dir=str(tmp_path), work_dir=str(tmp_path))
+    answer, store = run("math", runs_dir=str(tmp_path), work_dir=str(tmp_path))
     assert answer == "It is 743."
     tool_msgs = [m for m in calls[1]["messages"] if m["role"] == "tool"]
     assert tool_msgs == [{"role": "tool", "tool_call_id": "tc1", "content": "743"}]
-    events = [json.loads(line)["event"] for line in open(run_file)]
+    events = [e["event"] for e in store.load()]
     assert events == ["task", "model", "tool", "model", "answer"]
 
 
@@ -29,11 +27,11 @@ def test_pause_then_approve_resumes(fake_openai, tmp_path):
     assert not (tmp_path / "x.txt").exists()
 
     responses.append(answer_resp("done"))
-    answer, run_file = run(state=exc.state, decision=True,
-                           runs_dir=str(tmp_path), work_dir=str(tmp_path))
+    answer, store = run(state=exc.state, decision=True,
+                        runs_dir=str(tmp_path), work_dir=str(tmp_path))
     assert answer == "done"
     assert (tmp_path / "x.txt").read_text() == "hi"
-    events = [json.loads(line)["event"] for line in open(run_file)]
+    events = [e["event"] for e in store.load()]
     assert "resume" in events  # same log file spans both phases
     assert events[0] == "task"
 

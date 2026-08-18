@@ -4,6 +4,7 @@ import json
 import os
 import time
 
+from .stores import JsonlRunStore
 from .tools import BASE_DIR, REGISTRY, anthropic_specs, openai_specs
 
 MAX_STEPS = 10
@@ -21,18 +22,17 @@ class ApprovalNeeded(Exception):
     back into run() to continue where the run paused.
     """
 
-    def __init__(self, tool, args, state, run_file):
+    def __init__(self, tool, args, state, store):
         super().__init__(f"approval needed for {tool}")
         self.tool = tool
         self.tool_args = args  # not .args: BaseException.args coerces to a tuple
         self.state = state
-        self.run_file = run_file
+        self.store = store
 
 
-def _log(run_file, entry):
+def _log(store, entry):
     entry["ts"] = time.time()
-    with open(run_file, "a", encoding="utf-8") as f:
-        f.write(json.dumps(entry) + "\n")
+    store.append(entry)
 
 
 def _approve(name, args):
@@ -42,8 +42,9 @@ def _approve(name, args):
 
 
 def run(task=None, approve=_approve, model="gpt-4o-mini", runs_dir=None, work_dir=None,
-        state=None, decision=None, max_tokens=2000, system=None, tools=None, require_approval=None):
-    """Run the agent on a task. Returns (answer, run_file_path).
+        state=None, decision=None, max_tokens=2000, system=None, tools=None, require_approval=None,
+        store=None):
+    """Run the agent on a task. Returns (answer, store).
 
     approve: callback(name, args) -> bool for tools marked requires_approval.
     Pass approve=None to pause instead: the run raises ApprovalNeeded, and the
@@ -52,34 +53,37 @@ def run(task=None, approve=_approve, model="gpt-4o-mini", runs_dir=None, work_di
     system: override the default system prompt.
     tools: restrict this run to a subset of registered tool names.
     require_approval: extra tool names to approval-gate for this run.
+    store: RunStore to append events to (default: JsonlRunStore under runs_dir,
+    resuming the file named by state["run_name"] when resuming a paused run).
     """
     call = _make_caller(model)
-    runs_dir = runs_dir or os.environ.get("RUNS_DIR", "runs")
-    os.makedirs(runs_dir, exist_ok=True)
-    run_name = os.path.basename((state or {}).get("run_name") or f"run-{int(time.time())}.jsonl")
-    run_file = os.path.join(runs_dir, run_name)
+    if store is None:
+        runs_dir = runs_dir or os.environ.get("RUNS_DIR", "runs")
+        os.makedirs(runs_dir, exist_ok=True)
+        run_name = os.path.basename((state or {}).get("run_name") or f"run-{int(time.time())}.jsonl")
+        store = JsonlRunStore(os.path.join(runs_dir, run_name))
 
     if state:
         messages = state["messages"]
         pending = list(state["pending"])
         start = state["step"]
-        _log(run_file, {"event": "resume", "decision": bool(decision)})
+        _log(store, {"event": "resume", "decision": bool(decision)})
     else:
         messages = [{"role": "system", "content": system or SYSTEM},
                     {"role": "user", "content": task}]
         pending = []
         start = 0
-        _log(run_file, {"event": "task", "task": task})
+        _log(store, {"event": "task", "task": task})
 
     token = BASE_DIR.set(work_dir) if work_dir else None
     try:
         for step in range(start, MAX_STEPS):
             if not pending:
                 text, calls, usage = call(messages, tools, max_tokens)
-                _log(run_file, {"event": "model", "model": model, **usage})
+                _log(store, {"event": "model", "model": model, **usage})
                 if not calls:
-                    _log(run_file, {"event": "answer", "content": text})
-                    return text, run_file
+                    _log(store, {"event": "answer", "content": text})
+                    return text, store
                 messages.append({"role": "assistant", "content": text, "tool_calls": calls})
                 pending = list(calls)
 
@@ -99,17 +103,17 @@ def run(task=None, approve=_approve, model="gpt-4o-mini", runs_dir=None, work_di
                         raise ApprovalNeeded(
                             name, args,
                             {"messages": messages, "pending": pending, "step": step,
-                             "run_name": run_name},
-                            run_file,
+                             "run_name": store.name},
+                            store,
                         )
                 else:
                     approved = True
                 pending.pop(0)
-                result = _execute(name, args, approved, run_file, tools)
+                result = _execute(name, args, approved, store, tools)
                 messages.append({"role": "tool", "tool_call_id": tc["id"], "content": result})
 
-        _log(run_file, {"event": "abort", "reason": "step budget exhausted"})
-        return "Stopped: step budget exhausted before the task finished.", run_file
+        _log(store, {"event": "abort", "reason": "step budget exhausted"})
+        return "Stopped: step budget exhausted before the task finished.", store
     finally:
         if token:
             BASE_DIR.reset(token)
@@ -181,20 +185,20 @@ def _anthropic_call(client, model, messages, tools, max_tokens):
                          "completion_tokens": resp.usage.output_tokens}
 
 
-def _execute(name, args, approved, run_file, tools=None):
+def _execute(name, args, approved, store, tools=None):
     if name not in REGISTRY or (tools is not None and name not in tools):
         # allowlist: only registered tools, only the ones scoped to this run
-        _log(run_file, {"event": "blocked", "tool": name, "reason": "not in allowlist"})
+        _log(store, {"event": "blocked", "tool": name, "reason": "not in allowlist"})
         return f"error: tool '{name}' does not exist"
     entry = REGISTRY[name]
     if entry["requires_approval"] and not approved:
-        _log(run_file, {"event": "denied", "tool": name, "args": args})
+        _log(store, {"event": "denied", "tool": name, "args": args})
         return "error: the user denied this action"
     try:
         result = entry["fn"](**args)
-        _log(run_file, {"event": "tool", "tool": name, "args": args, "result": str(result)[:500]})
+        _log(store, {"event": "tool", "tool": name, "args": args, "result": str(result)[:500]})
         print(f"[tool] {name}: {str(result)[:120]}")
         return str(result)
     except Exception as e:
-        _log(run_file, {"event": "tool_error", "tool": name, "args": args, "error": str(e)})
+        _log(store, {"event": "tool_error", "tool": name, "args": args, "error": str(e)})
         return f"error: {e}"
