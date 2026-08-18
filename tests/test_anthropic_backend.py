@@ -63,3 +63,14 @@ def test_claude_uses_subscription_token(fake_anthropic, monkeypatch, tmp_path):
     ckw = calls[0]["client_kwargs"]
     assert ckw["auth_token"] == "sk-ant-oat-test"
     assert ckw["default_headers"] == {"anthropic-beta": "oauth-2025-04-20"}
+
+
+def test_credentials_override_env(fake_anthropic, monkeypatch, tmp_path):
+    from agentloop.agent import run
+    responses, calls = fake_anthropic
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "sk-ant-oat-should-lose")
+    responses.append(a_answer("hi"))
+    run("hello", model="claude-opus-5", credentials={"api_key": "sk-byok"},
+        runs_dir=str(tmp_path), work_dir=str(tmp_path))
+    assert calls[0]["client_kwargs"]["api_key"] == "sk-byok"
+    assert "auth_token" not in calls[0]["client_kwargs"]

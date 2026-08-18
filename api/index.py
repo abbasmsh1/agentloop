@@ -85,14 +85,17 @@ def orders():
 
 
 @app.post("/api/run")
-def run_task(req: RunRequest, request: Request, x_demo_token: str | None = Header(default=None)):
+def run_task(req: RunRequest, request: Request, x_demo_token: str | None = Header(default=None),
+             x_provider_key: str | None = Header(default=None)):
     check_token(x_demo_token)
     check_rate(request)
     if MODEL.startswith("claude"):
-        if not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")
-                or os.environ.get("CLAUDE_CODE_OAUTH_TOKEN")):
+        cred_ok = (x_provider_key or os.environ.get("ANTHROPIC_API_KEY")
+                   or os.environ.get("ANTHROPIC_AUTH_TOKEN")
+                   or os.environ.get("CLAUDE_CODE_OAUTH_TOKEN"))
+        if not cred_ok:
             raise HTTPException(503, "no Anthropic credentials configured on the server")
-    elif not os.environ.get("OPENAI_API_KEY"):
+    elif not (x_provider_key or os.environ.get("OPENAI_API_KEY")):
         raise HTTPException(503, "OPENAI_API_KEY not configured on the server")
 
     if req.state is not None:
@@ -112,9 +115,12 @@ def run_task(req: RunRequest, request: Request, x_demo_token: str | None = Heade
         kwargs = {"task": task}
 
     approve = (lambda name, args: True) if req.auto_approve else None
+    credentials = {"api_key": x_provider_key} if x_provider_key else None
     try:
-        answer, store = run(approve=approve, model=MODEL, runs_dir=work, work_dir=work,
-                            system=shop.SUPPORT_SYSTEM, tools=shop.SUPPORT_TOOLS, **kwargs)
+        answer, store = run(
+            approve=approve, model=MODEL, runs_dir=work, work_dir=work,
+            system=shop.SUPPORT_SYSTEM, tools=shop.SUPPORT_TOOLS,
+            credentials=credentials, **kwargs)
     except ApprovalNeeded as exc:
         return {
             "status": "approval_needed",

@@ -43,7 +43,7 @@ def _approve(name, args):
 
 def run(task=None, approve=_approve, model="gpt-4o-mini", runs_dir=None, work_dir=None,
         state=None, decision=None, max_tokens=2000, system=None, tools=None, require_approval=None,
-        store=None):
+        store=None, credentials=None):
     """Run the agent on a task. Returns (answer, store).
 
     approve: callback(name, args) -> bool for tools marked requires_approval.
@@ -55,8 +55,9 @@ def run(task=None, approve=_approve, model="gpt-4o-mini", runs_dir=None, work_di
     require_approval: extra tool names to approval-gate for this run.
     store: RunStore to append events to (default: JsonlRunStore under runs_dir,
     resuming the file named by state["run_name"] when resuming a paused run).
+    credentials: {"api_key": ...} overriding server env for this run.
     """
-    call = _make_caller(model)
+    call = _make_caller(model, credentials=credentials)
     if store is None:
         runs_dir = runs_dir or os.environ.get("RUNS_DIR", "runs")
         os.makedirs(runs_dir, exist_ok=True)
@@ -119,27 +120,33 @@ def run(task=None, approve=_approve, model="gpt-4o-mini", runs_dir=None, work_di
             BASE_DIR.reset(token)
 
 
-def _make_caller(model):
+def _make_caller(model, credentials=None):
     """Provider adapter: returns call(messages, tools, max_tokens) -> (text, tool_calls, usage).
 
     History stays in one internal format (OpenAI-style dicts) regardless of
     provider, so pause/resume state is provider-independent to store.
+    credentials: {"api_key": str} overriding server env for this call.
     """
+    key = (credentials or {}).get("api_key")
     if model.startswith("claude"):
         import anthropic
 
-        token = os.environ.get("CLAUDE_CODE_OAUTH_TOKEN")
-        if token and not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")):
-            # Claude subscription OAuth token (from `claude setup-token`)
-            client = anthropic.Anthropic(auth_token=token, max_retries=3, timeout=60,
-                                         default_headers={"anthropic-beta": "oauth-2025-04-20"})
+        if key:
+            # BYOK: use provided key directly
+            client = anthropic.Anthropic(api_key=key, max_retries=3, timeout=60)
         else:
-            client = anthropic.Anthropic(max_retries=3, timeout=60)
+            token = os.environ.get("CLAUDE_CODE_OAUTH_TOKEN")
+            if token and not (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_AUTH_TOKEN")):
+                # Claude subscription OAuth token (from `claude setup-token`)
+                client = anthropic.Anthropic(auth_token=token, max_retries=3, timeout=60,
+                                             default_headers={"anthropic-beta": "oauth-2025-04-20"})
+            else:
+                client = anthropic.Anthropic(max_retries=3, timeout=60)
         return lambda m, t, mt: _anthropic_call(client, model, m, t, mt)
 
     from openai import OpenAI
 
-    client = OpenAI(api_key=os.environ["OPENAI_API_KEY"], max_retries=3, timeout=60)
+    client = OpenAI(api_key=key or os.environ["OPENAI_API_KEY"], max_retries=3, timeout=60)
     return lambda m, t, mt: _openai_call(client, model, m, t, mt)
 
 

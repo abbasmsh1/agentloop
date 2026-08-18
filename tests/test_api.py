@@ -83,3 +83,16 @@ def test_orders_endpoint(client):
     j = client.get("/api/orders").json()
     assert j["store"] == "Aster & Pine"
     assert "A-1042" in j["orders"]
+
+
+def test_provider_key_header_forwarded(client, fake_openai, monkeypatch):
+    seen = {}
+    import api.index as api_mod
+    real_run = api_mod.run
+    def spy(**kw):
+        seen.update(kw)
+        return real_run(**kw)
+    monkeypatch.setattr(api_mod, "run", spy)
+    fake_openai[0].append(answer_resp("hi"))
+    client.post("/api/run", json={"task": "hi"}, headers={"X-Provider-Key": "sk-byok"})
+    assert seen["credentials"] == {"api_key": "sk-byok"}
