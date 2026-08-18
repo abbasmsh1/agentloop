@@ -1,10 +1,18 @@
 """Tool registry with allowlist, approval flags, and a path sandbox."""
+
 import ast
+import contextvars
 import inspect
 import operator
 import os
 
 REGISTRY = {}
+
+# File tools resolve paths against this instead of the process-global cwd, so
+# concurrent requests on one server instance each get their own sandbox.
+BASE_DIR = contextvars.ContextVar("agentloop_base_dir", default=None)
+
+_JSON_TYPES = {str: "string", int: "integer", float: "number", bool: "boolean"}
 
 
 def tool(description, requires_approval=False):
@@ -13,7 +21,7 @@ def tool(description, requires_approval=False):
     def wrap(fn):
         params = {}
         for name, p in inspect.signature(fn).parameters.items():
-            params[name] = {"type": "string"}
+            params[name] = {"type": _JSON_TYPES.get(p.annotation, "string")}
         REGISTRY[fn.__name__] = {
             "fn": fn,
             "requires_approval": requires_approval,
@@ -35,8 +43,15 @@ def tool(description, requires_approval=False):
     return wrap
 
 
-def openai_specs():
-    return [t["spec"] for t in REGISTRY.values()]
+def openai_specs(names=None):
+    return [t["spec"] for n, t in REGISTRY.items() if names is None or n in names]
+
+
+def anthropic_specs(names=None):
+    return [{"name": n,
+             "description": t["spec"]["function"]["description"],
+             "input_schema": t["spec"]["function"]["parameters"]}
+            for n, t in REGISTRY.items() if names is None or n in names]
 
 
 # ---- built-in tools ----
@@ -80,9 +95,9 @@ def write_file(path: str, content: str) -> str:
 
 
 def _sandboxed(path):
-    """Resolve path and refuse anything outside the current working directory."""
-    full = os.path.realpath(path)
-    cwd = os.path.realpath(os.getcwd())
-    if not full.startswith(cwd + os.sep) and full != cwd:
+    """Resolve path inside the sandbox base dir; refuse anything that escapes it."""
+    base = os.path.realpath(BASE_DIR.get() or os.getcwd())
+    full = os.path.realpath(os.path.join(base, path))
+    if not full.startswith(base + os.sep) and full != base:
         raise PermissionError(f"path escapes working directory: {path}")
     return full

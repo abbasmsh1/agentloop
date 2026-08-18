@@ -3,107 +3,215 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>agentloop</title>
+<title>Aster &amp; Pine — support console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Young+Serif&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #081412; --panel: #102220; --panel-2: #163029; --border: #26473f;
-    --text: #edf9f5; --muted: #96b8ae; --accent: #4dd6c1; --accent-ink: #032620;
-    --deny: #ff9d9d; --ok: #7ee2a8;
+    --roast: #211712; --panel: #2b1f18; --panel-2: #35271f; --line: #4a382b;
+    --text: #f4eae0; --muted: #b5a08f; --copper: #d98e5a; --copper-ink: #2a1508;
+    --paper: #f6efe1; --paper-ink: #38291d; --paper-line: #ddd0b9; --paper-dim: #8b7a64;
+    --ok: #8fcb9b; --deny: #ee9c8b;
+    --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  ::selection { background: var(--accent); color: var(--accent-ink); }
-  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
-  html { scrollbar-color: var(--border) transparent; }
+  ::selection { background: var(--copper); color: var(--copper-ink); }
+  :focus-visible { outline: 2px solid var(--copper); outline-offset: 2px; border-radius: 4px; }
+  html { scrollbar-color: var(--line) transparent; }
   body {
     font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background: var(--bg); color: var(--text); min-height: 100vh;
-    display: flex; flex-direction: column; align-items: center;
-    caret-color: var(--accent);
+    background: var(--roast); color: var(--text); min-height: 100vh;
+    caret-color: var(--copper);
   }
-  header { width: 100%; max-width: 820px; padding: 40px 20px 6px; }
-  h1 { font-size: 34px; font-weight: 800; letter-spacing: -0.02em; }
-  h1 em { font-style: normal; color: var(--accent); }
-  .sub { color: var(--muted); font-size: 15px; margin-top: 6px; max-width: 56ch; line-height: 1.5; }
-  main { width: 100%; max-width: 820px; padding: 18px 20px 150px; flex: 1; }
-  .empty { text-align: center; color: var(--muted); padding: 56px 20px; line-height: 1.7; font-size: 15px; }
-  .empty b { color: var(--text); display: block; font-size: 17px; margin-bottom: 4px; }
+  header {
+    max-width: 1100px; margin: 0 auto; padding: 30px 20px 18px;
+    display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+    border-bottom: 1px solid var(--line);
+  }
+  .wordmark {
+    font-family: "Young Serif", Georgia, serif; font-weight: 400; font-size: 30px;
+    letter-spacing: -0.01em;
+  }
+  .wordmark em { font-style: normal; color: var(--copper); }
+  .console-tag {
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 999px; padding: 3px 11px;
+  }
+  .layout {
+    max-width: 1100px; margin: 0 auto; padding: 22px 20px 60px;
+    display: grid; grid-template-columns: 320px 1fr; gap: 30px; align-items: start;
+  }
+  @media (max-width: 880px) { .layout { grid-template-columns: 1fr; } }
+
+  /* ---- order book rail ---- */
+  aside h2, .chat h2 {
+    font-family: var(--mono); font-weight: 500; font-size: 12px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--muted); margin-bottom: 12px;
+  }
+  .order {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 14px; margin-bottom: 10px; font-size: 13px; line-height: 1.5;
+  }
+  .order .top { display: flex; justify-content: space-between; align-items: baseline; }
+  .order .oid { font-family: var(--mono); color: var(--copper); font-weight: 500; }
+  .order .total { font-family: var(--mono); }
+  .order .who { color: var(--text); margin-top: 2px; }
+  .order .meta { color: var(--muted); font-size: 12px; }
+  .order .flag { color: var(--deny); }
+  .chips { margin-top: 22px; }
+  .chip {
+    display: block; width: 100%; text-align: left; margin-bottom: 8px;
+    background: transparent; border: 1px solid var(--line); border-radius: 10px;
+    color: var(--muted); font-size: 13px; line-height: 1.45; padding: 10px 12px;
+    cursor: pointer; font-family: inherit;
+    transition: border-color .15s ease, color .15s ease;
+  }
+  .chip:hover { border-color: var(--copper); color: var(--text); }
+
+  /* ---- chat ---- */
+  .empty {
+    color: var(--muted); border: 1px dashed var(--line); border-radius: 12px;
+    padding: 34px 24px; text-align: center; line-height: 1.7; font-size: 14px;
+  }
+  .empty b { color: var(--text); display: block; font-size: 16px; margin-bottom: 4px; }
   .msg {
-    padding: 13px 16px; border-radius: 14px; margin: 12px 0;
-    line-height: 1.55; white-space: pre-wrap; max-width: 85%;
+    padding: 13px 16px; border-radius: 13px; margin: 14px 0; line-height: 1.55;
+    white-space: pre-wrap; max-width: 88%; font-size: 15px;
     animation: rise .25s cubic-bezier(.2,.9,.3,1) both;
   }
   @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
   @media (prefers-reduced-motion: reduce) { .msg { animation: none; } }
-  .q { background: var(--panel-2); border: 1px solid var(--border); margin-left: auto; border-bottom-right-radius: 4px; }
-  .a { background: var(--panel); border: 1px solid var(--border); margin-right: auto; border-bottom-left-radius: 4px; }
+  .q { background: var(--panel-2); border: 1px solid var(--line); margin-left: auto; border-bottom-right-radius: 4px; }
+  .a { background: var(--panel); border: 1px solid var(--line); margin-right: auto; border-bottom-left-radius: 4px; }
   .a.busy { color: var(--muted); }
-  .trace { margin-top: 12px; font-size: 13px; color: var(--muted); }
-  .trace summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+
+  /* ---- countersign card ---- */
+  .card { border: 1px solid var(--copper); border-radius: 10px; padding: 13px 15px; background: var(--panel-2); }
+  .card .what {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--copper); margin-bottom: 8px;
+  }
+  .card code { font-family: var(--mono); font-size: 13px; overflow-wrap: anywhere; }
+  .card .btns { display: flex; gap: 8px; margin-top: 12px; }
+  button.act {
+    background: var(--copper); color: var(--copper-ink); font-weight: 700; border: 0;
+    border-radius: 9px; padding: 9px 20px; font-size: 14px; cursor: pointer;
+    font-family: inherit; transition: transform .12s ease, filter .12s ease;
+  }
+  button.act:hover { filter: brightness(1.08); }
+  button.act:active { transform: scale(.97); }
+  button.act:disabled { opacity: .45; cursor: wait; transform: none; }
+  button.deny { background: transparent; color: var(--deny); border: 1px solid var(--deny); }
+
+  /* ---- the receipt: run log as paper trail ---- */
+  .trace { margin-top: 14px; font-size: 13px; }
+  .trace summary { cursor: pointer; color: var(--copper); font-family: var(--mono); font-size: 12px; }
   .trace summary:hover { text-decoration: underline; text-underline-offset: 3px; }
-  .ev {
-    display: flex; gap: 10px; align-items: baseline;
-    border-top: 1px solid var(--border); padding: 7px 2px;
+  .receipt {
+    margin-top: 10px; background: var(--paper); color: var(--paper-ink);
+    font-family: var(--mono); font-size: 12px; line-height: 1.5;
+    padding: 14px 16px 18px; border-radius: 2px 2px 0 0; position: relative;
+    box-shadow: 0 3px 14px rgb(0 0 0 / .35); max-width: 480px;
   }
-  .ev:first-of-type { margin-top: 8px; }
-  .tag {
-    flex: none; font-size: 11px; font-weight: 700; letter-spacing: .04em;
-    padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted);
+  .receipt::after {  /* torn bottom edge */
+    content: ""; position: absolute; left: 0; right: 0; bottom: -8px; height: 8px;
+    background:
+      linear-gradient(-45deg, transparent 5.5px, var(--paper) 0) 0 0 / 12px 8px repeat-x,
+      linear-gradient(45deg, transparent 5.5px, var(--paper) 0) 6px 0 / 12px 8px repeat-x;
   }
-  .tag.tool { color: var(--accent); border-color: var(--accent); }
-  .tag.denied, .tag.blocked, .tag.tool_error { color: var(--deny); border-color: var(--deny); }
-  .tag.answer { color: var(--ok); border-color: var(--ok); }
-  .ev .body { overflow-wrap: anywhere; }
-  form.ask {
-    position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
-    width: 100%; max-width: 820px; padding: 12px 20px 22px;
-    background: linear-gradient(transparent, var(--bg) 30%);
+  .receipt .head {
+    text-align: center; letter-spacing: .1em; text-transform: uppercase;
+    border-bottom: 1px dashed var(--paper-line); padding-bottom: 8px; margin-bottom: 8px;
   }
+  .rl { display: flex; gap: 10px; align-items: baseline; padding: 2.5px 0; }
+  .rl .et { flex: none; width: 7ch; font-weight: 500; color: var(--paper-dim); }
+  .rl .et.tool { color: #8a4b22; }
+  .rl .et.denied, .rl .et.blocked, .rl .et.error, .rl .et.abort { color: #a33b2a; }
+  .rl .et.answer, .rl .et.resume { color: #3e6b48; }
+  .rl .ed { overflow-wrap: anywhere; }
+  .receipt .foot {
+    border-top: 1px dashed var(--paper-line); margin-top: 8px; padding-top: 8px;
+    text-align: center; color: var(--paper-dim);
+  }
+
+  /* ---- composer ---- */
+  form.ask { position: sticky; bottom: 0; padding: 14px 0 18px; background: linear-gradient(transparent, var(--roast) 35%); }
   .row { display: flex; gap: 10px; }
   .row input[type=text] {
-    flex: 1; min-width: 0; background: var(--panel); border: 1px solid var(--border);
+    flex: 1; min-width: 0; background: var(--panel); border: 1px solid var(--line);
     border-radius: 11px; padding: 13px 16px; color: var(--text); font-size: 15px;
-    transition: border-color .15s ease;
+    font-family: inherit; transition: border-color .15s ease;
   }
   .row input[type=text]::placeholder { color: var(--muted); }
-  .row input[type=text]:hover { border-color: var(--accent); }
-  .row input[type=text]:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgb(77 214 193 / .22); }
-  button {
-    background: var(--accent); color: var(--accent-ink); font-weight: 700; border: 0;
-    border-radius: 10px; padding: 10px 22px; font-size: 14px; cursor: pointer;
-    transition: transform .12s ease, filter .12s ease;
-  }
-  button:hover { filter: brightness(1.07); }
-  button:active { transform: scale(0.97); }
-  button:disabled { opacity: .45; cursor: wait; transform: none; }
+  .row input[type=text]:hover { border-color: var(--copper); }
+  .row input[type=text]:focus { outline: none; border-color: var(--copper); box-shadow: 0 0 0 3px rgb(217 142 90 / .22); }
   label.approve {
     display: flex; gap: 8px; align-items: center; font-size: 13px;
     color: var(--muted); margin-top: 10px; cursor: pointer; width: fit-content;
   }
-  label.approve input { accent-color: var(--accent); width: 15px; height: 15px; }
+  label.approve input { accent-color: var(--copper); width: 15px; height: 15px; }
 </style>
 </head>
 <body>
 <header>
-  <h1>An agent with <em>guardrails</em></h1>
-  <p class="sub">Give it a task. It reasons, calls tools (calculator, read_file, write_file), and shows you the full run log. Writes only happen when you allow them.</p>
+  <div class="wordmark">Aster <em>&amp;</em> Pine</div>
+  <span class="console-tag">support console &middot; an agentloop demo</span>
 </header>
-<main>
-  <div id="chat">
-    <div class="empty" id="emptystate"><b>No runs yet</b>Try: &ldquo;What is (17 &times; 43) + 12? Save the answer to result.txt&rdquo;</div>
-  </div>
-</main>
-<form class="ask" id="askform">
-  <div class="row">
-    <input type="text" id="task" placeholder="Describe a task for the agent&hellip;" autocomplete="off" aria-label="Task">
-    <button id="go">Run</button>
-  </div>
-  <label class="approve">
-    <input type="checkbox" id="auto">
-    Auto-approve write actions &mdash; unchecked, the agent's writes are denied
-  </label>
-</form>
+<div class="layout">
+  <aside>
+    <h2>Order book</h2>
+    <div id="orders"></div>
+    <div class="chips">
+      <h2>Try asking</h2>
+      <button class="chip">The kettle on order A-1042 arrived dented. Refund it in full.</button>
+      <button class="chip">What has sara@example.com ordered from us?</button>
+      <button class="chip">Marco says his grinder (A-1044) broke. Can we refund it?</button>
+      <button class="chip">Add a note to A-1045: customer called about the delivery.</button>
+    </div>
+  </aside>
+  <section class="chat">
+    <h2>Conversation</h2>
+    <div id="chat">
+      <div class="empty" id="emptystate"><b>Quiet in support today</b>Pick a task from the order book, or write your own. Refunds pause for your sign-off; everything lands on the run receipt.</div>
+    </div>
+    <form class="ask" id="askform">
+      <div class="row">
+        <input type="text" id="task" placeholder="Describe a support task&hellip;" autocomplete="off" aria-label="Support task">
+        <button class="act" id="go">Run</button>
+      </div>
+      <label class="approve">
+        <input type="checkbox" id="auto">
+        Auto-approve refunds &mdash; unchecked, the agent pauses for your sign-off
+      </label>
+    </form>
+  </section>
+</div>
 <script>
 const $ = id => document.getElementById(id);
+
+fetch('/api/orders').then(r => r.json()).then(j => {
+  $('orders').innerHTML = Object.entries(j.orders).map(([id, o]) => `
+    <div class="order">
+      <div class="top"><span class="oid">${esc(id)}</span><span class="total">&euro;${o.total.toFixed(2)}</span></div>
+      <div class="who">${esc(o.customer)}</div>
+      <div class="meta">${esc(o.items.join(', '))}</div>
+      <div class="meta">${status(o)}</div>
+    </div>`).join('');
+}).catch(() => { $('orders').innerHTML = '<div class="order">Order book unavailable.</div>'; });
+
+function status(o) {
+  if (o.refunded > 0) return `<span class="flag">&euro;${o.refunded.toFixed(2)} refunded</span>`;
+  if (!o.delivered) return 'in transit';
+  const days = Math.round((Date.now() - new Date(o.delivered)) / 86400000);
+  return `delivered ${days} day${days === 1 ? '' : 's'} ago${days > 30 ? ' &middot; outside refund window' : ''}`;
+}
+
+document.querySelectorAll('.chip').forEach(c => c.onclick = () => {
+  $('task').value = c.textContent;
+  $('askform').requestSubmit();
+});
+
 $('askform').onsubmit = async (ev) => {
   ev.preventDefault();
   const task = $('task').value.trim();
@@ -112,34 +220,84 @@ $('askform').onsubmit = async (ev) => {
   if (empty) empty.remove();
   $('task').value = '';
   add('q', task);
-  const wait = add('a busy', 'Agent running…');
+  const wait = add('a busy', 'Agent working…');
   $('go').disabled = true;
+  await step({ task, auto_approve: $('auto').checked }, wait);
+  $('go').disabled = false;
+};
+
+async function step(body, bubble) {
   try {
     const r = await fetch('/api/run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ task, auto_approve: $('auto').checked }),
+      body: JSON.stringify(body),
     });
     const j = await r.json();
-    wait.classList.remove('busy');
-    if (!r.ok) { wait.textContent = 'Error: ' + (j.detail || r.status); }
-    else {
-      wait.textContent = j.answer;
-      if (j.events && j.events.length) {
-        const d = document.createElement('details');
-        d.className = 'trace';
-        d.innerHTML = '<summary>run log &middot; ' + j.events.length + ' events</summary>' +
-          j.events.map(e => `
-            <div class="ev">
-              <span class="tag ${esc(e.event)}">${esc(e.event)}</span>
-              <span class="body">${esc([e.tool, e.result || e.reason || e.content || e.task || ''].filter(Boolean).join(' — ')).slice(0, 400)}</span>
-            </div>`).join('');
-        wait.appendChild(d);
-      }
+    bubble.classList.remove('busy');
+    if (!r.ok) { bubble.textContent = 'Error: ' + (j.detail || r.status); return; }
+    if (j.status === 'approval_needed') {
+      bubble.textContent = '';
+      bubble.appendChild(approvalCard(j, bubble));
+    } else {
+      bubble.textContent = j.answer;
     }
-  } catch (e) { wait.classList.remove('busy'); wait.textContent = 'Error: ' + e; }
-  $('go').disabled = false;
-};
+    setTrace(bubble, j.events);
+    bubble.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  } catch (e) { bubble.classList.remove('busy'); bubble.textContent = 'Error: ' + e; }
+}
+
+function approvalCard(j, bubble) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  const argstr = Object.entries(j.args || {})
+    .map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(', ').slice(0, 300);
+  card.innerHTML = '<div class="what">Countersign required</div>' +
+    `<code>${esc(j.tool)}(${esc(argstr)})</code>` +
+    '<div class="btns"><button class="act ok">Approve</button><button class="act deny">Deny</button></div>';
+  const decide = async (decision) => {
+    card.querySelectorAll('button').forEach(b => b.disabled = true);
+    bubble.textContent = 'Agent working…';
+    bubble.classList.add('busy');
+    await step({ state: j.state, decision, auto_approve: $('auto').checked }, bubble);
+  };
+  card.querySelector('.ok').onclick = () => decide(true);
+  card.querySelector('.deny').onclick = () => decide(false);
+  return card;
+}
+
+function evLine(e) {
+  switch (e.event) {
+    case 'task': return ['task', e.task];
+    case 'model': return ['model', `${e.model} · ${e.prompt_tokens}↑ ${e.completion_tokens}↓`];
+    case 'tool': return ['tool', `${e.tool}(${shortArgs(e.args)}) → ${e.result}`];
+    case 'denied': return ['denied', `${e.tool}(${shortArgs(e.args)})`];
+    case 'blocked': return ['blocked', `${e.tool} — ${e.reason}`];
+    case 'tool_error': return ['error', `${e.tool}: ${e.error}`];
+    case 'resume': return ['resume', e.decision ? 'approved by human' : 'denied by human'];
+    case 'answer': return ['answer', e.content];
+    case 'abort': return ['abort', e.reason];
+    default: return [e.event, ''];
+  }
+}
+function shortArgs(a) { return Object.entries(a || {}).map(([k, v]) => `${k}=${JSON.stringify(v)}`).join(', ').slice(0, 120); }
+
+function setTrace(bubble, events) {
+  if (!events || !events.length) return;
+  const tokens = events.filter(e => e.event === 'model')
+    .reduce((n, e) => n + (e.prompt_tokens || 0) + (e.completion_tokens || 0), 0);
+  const d = document.createElement('details');
+  d.className = 'trace';
+  d.innerHTML = `<summary>run receipt &middot; ${events.length} events</summary>` +
+    '<div class="receipt"><div class="head">Run log &middot; Aster &amp; Pine support</div>' +
+    events.map(e => {
+      const [tag, text] = evLine(e);
+      return `<div class="rl"><span class="et ${esc(tag)}">${esc(tag)}</span><span class="ed">${esc(String(text ?? '')).slice(0, 500)}</span></div>`;
+    }).join('') +
+    `<div class="foot">&mdash; ${tokens} tokens &mdash;</div></div>`;
+  bubble.appendChild(d);
+}
+
 function add(cls, text) {
   const div = document.createElement('div');
   div.className = 'msg ' + cls;

@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentloop"
+version = "0.2.0"
+description = "A minimal, auditable AI agent: tool calling with guardrails, human approval for risky actions, and a full run log."
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Abbas Mustafa" }]
+requires-python = ">=3.10"
+dependencies = [
+    "openai>=1.30",
+    "anthropic>=0.40",
+]
+
+[project.optional-dependencies]
+web = ["fastapi>=0.111", "uvicorn>=0.30"]
+dev = ["pytest>=8.0", "httpx>=0.27", "ruff>=0.5", "fastapi>=0.111", "uvicorn>=0.30"]
+
+[project.scripts]
+agentloop = "agentloop.__main__:main"
+
+[tool.setuptools]
+packages = ["agentloop"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
