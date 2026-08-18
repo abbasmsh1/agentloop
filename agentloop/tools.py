@@ -3,8 +3,13 @@
 import ast
 import contextvars
 import inspect
+import ipaddress
+import json
 import operator
 import os
+import socket
+import urllib.request
+from urllib.parse import urlparse
 
 REGISTRY = {}
 
@@ -15,32 +20,69 @@ BASE_DIR = contextvars.ContextVar("agentloop_base_dir", default=None)
 _JSON_TYPES = {str: "string", int: "integer", float: "number", bool: "boolean"}
 
 
-def tool(description, requires_approval=False):
-    """Register a function as an agent tool. Schema comes from the signature."""
+class WebhookURLError(ValueError):
+    pass
 
-    def wrap(fn):
-        params = {}
-        for name, p in inspect.signature(fn).parameters.items():
-            params[name] = {"type": _JSON_TYPES.get(p.annotation, "string")}
-        REGISTRY[fn.__name__] = {
-            "fn": fn,
-            "requires_approval": requires_approval,
-            "spec": {
-                "type": "function",
-                "function": {
-                    "name": fn.__name__,
-                    "description": description,
-                    "parameters": {
-                        "type": "object",
-                        "properties": params,
-                        "required": list(params),
-                    },
+
+def register_tool(name, description, fn, params, requires_approval=False):
+    """Register any callable as an agent tool. params: {arg_name: json_type}."""
+    REGISTRY[name] = {
+        "fn": fn,
+        "requires_approval": requires_approval,
+        "spec": {
+            "type": "function",
+            "function": {
+                "name": name,
+                "description": description,
+                "parameters": {
+                    "type": "object",
+                    "properties": {k: {"type": v} for k, v in params.items()},
+                    "required": list(params),
                 },
             },
-        }
-        return fn
+        },
+    }
 
+
+def tool(description, requires_approval=False):
+    """Register a function as an agent tool. Schema comes from the signature."""
+    def wrap(fn):
+        params = {n: _JSON_TYPES.get(p.annotation, "string")
+                  for n, p in inspect.signature(fn).parameters.items()}
+        register_tool(fn.__name__, description, fn, params, requires_approval)
+        return fn
     return wrap
+
+
+def register_webhook_tool(name, description, url, params,
+                          requires_approval=True, timeout=15, allow_private=False):
+    """Bring-your-own-tool over HTTP: args POSTed as JSON, response text returned."""
+    _check_webhook_url(url, allow_private)
+
+    def call(**kwargs):
+        req = urllib.request.Request(
+            url, data=json.dumps(kwargs).encode(),
+            headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return r.read(65536).decode("utf-8", "replace")[:8000]
+
+    register_tool(name, description, call, params, requires_approval)
+
+
+def _check_webhook_url(url, allow_private):
+    p = urlparse(url)
+    if p.scheme not in ("http", "https") or not p.hostname:
+        raise WebhookURLError(f"webhook url must be http(s): {url}")
+    if allow_private:
+        return
+    try:
+        infos = socket.getaddrinfo(p.hostname, p.port or 80)
+    except OSError as e:
+        raise WebhookURLError(f"cannot resolve {p.hostname}: {e}") from e
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0])
+        if not ip.is_global:
+            raise WebhookURLError(f"webhook host resolves to non-public address {ip}")
 
 
 def openai_specs(names=None):
