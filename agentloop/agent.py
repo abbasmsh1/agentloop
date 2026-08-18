@@ -42,7 +42,7 @@ def _approve(name, args):
 
 
 def run(task=None, approve=_approve, model="gpt-4o-mini", runs_dir=None, work_dir=None,
-        state=None, decision=None, max_tokens=2000, system=None, tools=None):
+        state=None, decision=None, max_tokens=2000, system=None, tools=None, require_approval=None):
     """Run the agent on a task. Returns (answer, run_file_path).
 
     approve: callback(name, args) -> bool for tools marked requires_approval.
@@ -51,6 +51,7 @@ def run(task=None, approve=_approve, model="gpt-4o-mini", runs_dir=None, work_di
     work_dir: sandbox root for file tools (defaults to the process cwd).
     system: override the default system prompt.
     tools: restrict this run to a subset of registered tool names.
+    require_approval: extra tool names to approval-gate for this run.
     """
     call = _make_caller(model)
     runs_dir = runs_dir or os.environ.get("RUNS_DIR", "runs")
@@ -87,7 +88,9 @@ def run(task=None, approve=_approve, model="gpt-4o-mini", runs_dir=None, work_di
                 name = tc["function"]["name"]
                 args = json.loads(tc["function"]["arguments"] or "{}")
                 in_scope = name in REGISTRY and (tools is None or name in tools)
-                if in_scope and REGISTRY[name]["requires_approval"]:
+                gated = in_scope and (REGISTRY[name]["requires_approval"]
+                                      or (require_approval and name in require_approval))
+                if gated:
                     if decision is not None:
                         approved, decision = bool(decision), None
                     elif approve is not None:

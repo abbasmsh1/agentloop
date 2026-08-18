@@ -67,3 +67,18 @@ def test_unknown_tool_reported_to_model(fake_openai, tmp_path):
     assert answer == "cannot"
     tool_msgs = [m for m in calls[1]["messages"] if m["role"] == "tool"]
     assert "does not exist" in tool_msgs[0]["content"]
+
+
+def test_require_approval_override_pauses_ungated_tool(fake_openai, tmp_path):
+    responses, _ = fake_openai
+    responses.append(tool_call_resp("calculate", '{"expression": "1+1"}'))
+    with pytest.raises(ApprovalNeeded) as exc_info:
+        run("calc", approve=None, require_approval=["calculate"],
+            runs_dir=str(tmp_path), work_dir=str(tmp_path))
+    assert exc_info.value.tool == "calculate"
+
+    responses.append(answer_resp("2"))
+    answer, _ = run(state=exc_info.value.state, decision=True,
+                    require_approval=["calculate"],
+                    runs_dir=str(tmp_path), work_dir=str(tmp_path))
+    assert answer == "2"
