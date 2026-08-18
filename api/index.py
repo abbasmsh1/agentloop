@@ -43,8 +43,8 @@ def check_token(x_demo_token):
 
 
 def check_rate(request):
-    fwd = request.headers.get("x-forwarded-for") or (request.client.host if request.client else "?")
-    ip = fwd.split(",")[0].strip()
+    fwd = request.headers.get("x-forwarded-for")
+    ip = fwd.split(",")[-1].strip() if fwd else (request.client.host if request.client else "?")
     now = time.time()
     _hits[ip] = [t for t in _hits[ip] if now - t < 60]
     if len(_hits[ip]) >= RATE_LIMIT:

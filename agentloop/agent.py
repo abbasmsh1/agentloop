@@ -97,7 +97,7 @@ def run(task=None, approve=_approve, model="gpt-4o-mini", runs_dir=None, work_di
                                       or (require_approval and name in require_approval))
                 if gated:
                     if decision is not None:
-                        approved, decision = bool(decision), None
+                        approved = bool(decision)
                     elif approve is not None:
                         approved = approve(name, args)
                     else:
@@ -110,8 +110,13 @@ def run(task=None, approve=_approve, model="gpt-4o-mini", runs_dir=None, work_di
                 else:
                     approved = True
                 pending.pop(0)
-                result = _execute(name, args, approved, store, tools)
+                if gated and not approved:
+                    _log(store, {"event": "denied", "tool": name, "args": args})
+                    result = "error: the user denied this action"
+                else:
+                    result = _execute(name, args, approved, store, tools)
                 messages.append({"role": "tool", "tool_call_id": tc["id"], "content": result})
+                decision = None  # a decision answers only the pause that raised it
 
         _log(store, {"event": "abort", "reason": "step budget exhausted"})
         return "Stopped: step budget exhausted before the task finished.", store
@@ -180,8 +185,11 @@ def _anthropic_call(client, model, messages, tools, max_tokens):
                                "input": json.loads(tc["function"]["arguments"] or "{}")})
             history.append({"role": "assistant", "content": blocks})
         elif m["role"] == "tool":
-            history.append({"role": "user", "content": [
-                {"type": "tool_result", "tool_use_id": m["tool_call_id"], "content": m["content"]}]})
+            block = {"type": "tool_result", "tool_use_id": m["tool_call_id"], "content": m["content"]}
+            if history and history[-1]["role"] == "user" and isinstance(history[-1]["content"], list):
+                history[-1]["content"].append(block)
+            else:
+                history.append({"role": "user", "content": [block]})
     resp = client.messages.create(model=model, max_tokens=max_tokens, system=system,
                                   messages=history, tools=anthropic_specs(tools))
     text = "".join(b.text for b in resp.content if b.type == "text")

@@ -38,6 +38,7 @@ def fake_openai(monkeypatch):
 
     class Client:
         def __init__(self, **kw):
+            calls.append({"client_kwargs": kw})
             self.chat = SimpleNamespace(completions=SimpleNamespace(create=create))
 
     monkeypatch.setattr(openai, "OpenAI", Client)

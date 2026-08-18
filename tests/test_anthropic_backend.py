@@ -74,3 +74,19 @@ def test_credentials_override_env(fake_anthropic, monkeypatch, tmp_path):
         runs_dir=str(tmp_path), work_dir=str(tmp_path))
     assert calls[0]["client_kwargs"]["api_key"] == "sk-byok"
     assert "auth_token" not in calls[0]["client_kwargs"]
+
+
+def test_parallel_tool_results_merge_into_one_user_message(fake_anthropic, tmp_path):
+    from agentloop.agent import run
+    responses, calls = fake_anthropic
+    blocks = [SimpleNamespace(type="tool_use", id="tu1", name="calculate", input={"expression": "1+1"}),
+              SimpleNamespace(type="tool_use", id="tu2", name="calculate", input={"expression": "2+2"})]
+    responses.append(SimpleNamespace(content=blocks,
+                                     usage=SimpleNamespace(input_tokens=20, output_tokens=8)))
+    responses.append(a_answer("4 and 2"))
+    run("math", model="claude-opus-5", runs_dir=str(tmp_path), work_dir=str(tmp_path))
+    second = calls[-1]
+    result_msgs = [m for m in second["messages"]
+                   if m["role"] == "user" and isinstance(m["content"], list)]
+    assert len(result_msgs) == 1
+    assert [b["tool_use_id"] for b in result_msgs[0]["content"]] == ["tu1", "tu2"]
