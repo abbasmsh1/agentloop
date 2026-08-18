@@ -2,13 +2,14 @@
 
 import ast
 import contextvars
+import http.client
 import inspect
 import ipaddress
 import json
 import operator
 import os
 import socket
-import urllib.request
+import ssl
 from urllib.parse import urlparse
 
 REGISTRY = {}
@@ -56,33 +57,78 @@ def tool(description, requires_approval=False):
 
 def register_webhook_tool(name, description, url, params,
                           requires_approval=True, timeout=15, allow_private=False):
-    """Bring-your-own-tool over HTTP: args POSTed as JSON, response text returned."""
+    """Bring-your-own-tool over HTTP: args POSTed as JSON, response text returned.
+
+    URL is validated at registration time (fail-fast). At call time, the URL is
+    re-validated and connection is pinned to the validated IP (prevents DNS rebinding).
+    Redirects are never followed.
+    """
     _check_webhook_url(url, allow_private)
 
     def call(**kwargs):
-        req = urllib.request.Request(
-            url, data=json.dumps(kwargs).encode(),
-            headers={"Content-Type": "application/json"}, method="POST")
-        with urllib.request.urlopen(req, timeout=timeout) as r:
-            return r.read(65536).decode("utf-8", "replace")[:8000]
+        return _webhook_post(url, kwargs, timeout, allow_private)
 
     register_tool(name, description, call, params, requires_approval)
 
 
 def _check_webhook_url(url, allow_private):
+    """Validate webhook URL and return the first resolved IP (re-validated at call time).
+
+    Raises WebhookURLError on bad scheme, hostname, resolution, or non-global address
+    (unless allow_private=True).
+    """
     p = urlparse(url)
     if p.scheme not in ("http", "https") or not p.hostname:
         raise WebhookURLError(f"webhook url must be http(s): {url}")
-    if allow_private:
-        return
     try:
-        infos = socket.getaddrinfo(p.hostname, p.port or 80)
+        infos = socket.getaddrinfo(p.hostname, p.port or 80, proto=socket.IPPROTO_TCP)
     except OSError as e:
         raise WebhookURLError(f"cannot resolve {p.hostname}: {e}") from e
-    for info in infos:
-        ip = ipaddress.ip_address(info[4][0])
-        if not ip.is_global:
-            raise WebhookURLError(f"webhook host resolves to non-public address {ip}")
+    if not infos:
+        raise WebhookURLError(f"webhook host resolution returned no addresses: {p.hostname}")
+    ip_str = infos[0][4][0]
+    ip = ipaddress.ip_address(ip_str)
+    if not allow_private and not ip.is_global:
+        raise WebhookURLError(f"webhook host resolves to non-public address {ip}")
+    return ip_str
+
+
+def _webhook_post(url, payload, timeout, allow_private):
+    """POST JSON to a webhook. Re-validates the URL at call time, connects to
+    the validated IP (no DNS-rebinding window), and never follows redirects."""
+    p = urlparse(url)
+    ip = _check_webhook_url(url, allow_private)
+    port = p.port or (443 if p.scheme == "https" else 80)
+    if p.scheme == "https":
+        conn = _PinnedHTTPSConnection(ip, port, p.hostname, timeout)
+    else:
+        conn = http.client.HTTPConnection(ip, port, timeout=timeout)
+    path = (p.path or "/") + (f"?{p.query}" if p.query else "")
+    try:
+        conn.request("POST", path, body=json.dumps(payload).encode(),
+                     headers={"Content-Type": "application/json", "Host": p.netloc})
+        r = conn.getresponse()
+        if 300 <= r.status < 400:
+            return f"error: webhook redirected ({r.status}); redirects are not followed"
+        body = r.read(65536).decode("utf-8", "replace")[:8000]
+        if r.status >= 400:
+            return f"error: webhook returned {r.status}: {body[:200]}"
+        return body
+    finally:
+        conn.close()
+
+
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    """Connects to a pre-validated IP while keeping TLS SNI and certificate
+    checks against the original hostname."""
+
+    def __init__(self, ip, port, hostname, timeout):
+        super().__init__(ip, port, timeout=timeout, context=ssl.create_default_context())
+        self._tls_hostname = hostname
+
+    def connect(self):
+        sock = socket.create_connection((self.host, self.port), self.timeout)
+        self.sock = self._context.wrap_socket(sock, server_hostname=self._tls_hostname)
 
 
 def openai_specs(names=None):
