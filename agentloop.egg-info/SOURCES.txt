@@ -1,0 +1,16 @@
+LICENSE
+README.md
+pyproject.toml
+agentloop/__init__.py
+agentloop/__main__.py
+agentloop/agent.py
+agentloop/tools.py
+agentloop.egg-info/PKG-INFO
+agentloop.egg-info/SOURCES.txt
+agentloop.egg-info/dependency_links.txt
+agentloop.egg-info/entry_points.txt
+agentloop.egg-info/requires.txt
+agentloop.egg-info/top_level.txt
+tests/test_agent.py
+tests/test_api.py
+tests/test_guardrails.py

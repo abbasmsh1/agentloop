@@ -1,0 +1,2 @@
+[console_scripts]
+agentloop = agentloop.__main__:main
